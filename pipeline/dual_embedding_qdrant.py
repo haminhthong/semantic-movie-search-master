@@ -84,6 +84,7 @@ def process_dual_embedding():
         "title": "",
         "genres": "",
         "release_date": "",
+        "release_year": 0,
         "poster_path": "",
         "vote_average": 0.0,
         "popularity": 0.0,
@@ -92,8 +93,7 @@ def process_dual_embedding():
 
     # Keep only rows with usable text
     df = df[df["combined_text"].astype(str).str.strip() != ""].copy()
-    df["chunk_position"] = 0
-    df["chunk_text"] = df["combined_text"]
+    df["document_text"] = df["combined_text"]
 
     logger.info(f" Ready {len(df)} movie-documents (chunk module removed)")
 
@@ -116,16 +116,19 @@ def process_dual_embedding():
         qdrant.create_payload_index(COLLECTION_NAME, "title", models.PayloadSchemaType.TEXT)
         qdrant.create_payload_index(COLLECTION_NAME, "genres", models.PayloadSchemaType.TEXT)
         qdrant.create_payload_index(COLLECTION_NAME, "release_date", models.PayloadSchemaType.TEXT)
+        qdrant.create_payload_index(COLLECTION_NAME, "release_year", models.PayloadSchemaType.INTEGER)
         logger.info(" Đã tạo Collection và đánh Index thành công!")
     else:
         logger.info(" Collection đã tồn tại. Sẵn sàng cập nhật/bổ sung dữ liệu.")
+        # Safe to call for an existing collection; required by numeric year filters.
+        qdrant.create_payload_index(COLLECTION_NAME, "release_year", models.PayloadSchemaType.INTEGER)
 
     # 4. Batch
     for i in tqdm(range(0, len(df), BATCH_SIZE), desc="Upserting"):
         batch_df = df.iloc[i:i + BATCH_SIZE]
 
         # Clean text
-        batch_texts = [clean_text(t) for t in batch_df['chunk_text'].tolist()]
+        batch_texts = [clean_text(t) for t in batch_df['document_text'].tolist()]
 
         # Dense
         dense_vecs = dense_model.encode(
@@ -147,12 +150,12 @@ def process_dual_embedding():
 
             payload = {
                 "movie_id": int(row['movie_id']),
-                "chunk_position": int(row['chunk_position']),
-                "chunk_text": str(row['chunk_text']),
+                "document_text": str(row['document_text']),
 
                 "title": str(row.get("title", "")),
                 "genres": str(row.get("genres", "")),
                 "release_date": str(row.get("release_date", "")),
+                "release_year": int(row.get("release_year", 0) or 0),
                 "vote_average": float(row.get("vote_average", 0)),
                 "popularity": float(row.get("popularity", 0)),
                 "poster_path": str(row.get("poster_path", ""))

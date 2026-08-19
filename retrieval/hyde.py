@@ -18,12 +18,12 @@ from groq import Groq
 logger = logging.getLogger(__name__)
 
 class HyDEProcessor:
-    def __init__(self, api_key: str = None, embedding_model_name: str = 'all-MiniLM-L6-v2'):
+    def __init__(self, api_key: str = None, encoder=None, embedding_model_name: str = 'all-MiniLM-L6-v2'):
         # =========================
         # NẠP MÔ HÌNH NHÚNG (EMBEDDING)
         # =========================
         logger.info(f" Đang nạp mô hình Embedding cho HyDE: {embedding_model_name}")
-        self.encoder = SentenceTransformer(embedding_model_name)
+        self.encoder = encoder or SentenceTransformer(embedding_model_name)
 
         # =========================
         # NẠP MÔ HÌNH TẠO SINH (GROQ LLAMA-3)

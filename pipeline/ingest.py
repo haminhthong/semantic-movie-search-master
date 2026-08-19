@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # ============================================
 
 load_dotenv()
-TMDB_API_KEY = "b980b29627c8cacc77dc56d0786b4906"
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_FILE = os.path.join(BASE_DIR, "data", "movies_raw.csv")
 
@@ -227,6 +227,7 @@ def fetch_tmdb_movies_by_year(
                             "title": item.get("title", ""),
                             "overview": item.get("overview", ""),
                             "release_date": item.get("release_date", ""),
+                            "release_year": year,
                             "vote_average": item.get("vote_average", 0.0),
                             "popularity": item.get("popularity", 0.0),
                             "genres": ", ".join(genre_names) if genre_names else "",

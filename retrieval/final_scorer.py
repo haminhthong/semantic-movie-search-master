@@ -3,8 +3,8 @@ MODULE 11: FINAL SCORING & FILTERING
 =========================================================
 - Input: Danh sách phim đã qua Rerank (có ce_score và Fat Payload)
 - Output: Top-N phim cuối cùng xuất ra API/UI.
-- Logic: Kết hợp điểm AI (ce_score) với điểm TMDB (vote_average, popularity)
-         để ưu tiên phim chất lượng cao.
+- Logic: Xếp hạng chỉ theo relevance. Rating/popularity là metadata, không làm
+  thay đổi ý định truy vấn của người dùng.
 """
 
 import logging
@@ -14,20 +14,18 @@ logger = logging.getLogger(__name__)
 
 
 class FinalScorer:
-    def __init__(self, semantic_weight: float = 0.8, popularity_weight: float = 0.2):
+    def __init__(self):
         """
         Khởi tạo bộ tính điểm cuối.
         - semantic_weight: Trọng số cho điểm ngữ nghĩa của AI (Reranker).
         - popularity_weight: Trọng số cho độ hot/chất lượng của phim.
         """
-        self.semantic_weight = semantic_weight
-        self.popularity_weight = popularity_weight
-        logger.info(f" Khởi tạo Final Scorer (AI: {semantic_weight * 100}% | Metadata: {popularity_weight * 100}%)")
+        logger.info("Final Scorer initialized (relevance-only ranking)")
 
     def normalize_score(self, value: float, min_val: float, max_val: float) -> float:
         """Chuẩn hóa điểm số về thang 0.0 -> 1.0 (Min-Max Scaling)"""
         if max_val == min_val:
-            return 0.0
+            return 1.0 if value == max_val else 0.0
         # Đảm bảo giá trị không vượt quá giới hạn
         value = max(min_val, min(value, max_val))
         return (value - min_val) / (max_val - min_val)
@@ -50,23 +48,14 @@ class FinalScorer:
             raw_ce = movie.get("ce_score", 0.0)
             norm_ce = self.normalize_score(raw_ce, min_ce, max_ce)
 
-            # Lấy điểm Metadata (Vote Average thang 10)
-            # Nếu phim không có vote, mặc định cho 5.0
-            vote_avg = movie.get("vote_average", 5.0)
-            norm_vote = self.normalize_score(vote_avg, 0.0, 10.0)
-
-            # Công thức Mix: Semantic + Metadata
-            final_score = (norm_ce * self.semantic_weight) + (norm_vote * self.popularity_weight)
-
-            # Gán điểm mới và làm tròn
-            movie["final_score"] = round(final_score, 4)
+            movie["final_score"] = round(norm_ce, 4)
 
             # Dọn dẹp các trường nội bộ không cần thiết đưa ra UI
             movie.pop("max_score", None)
-            movie.pop("matched_chunks", None)
+            movie.pop("matched_documents", None)
 
         # 3. XẾP HẠNG LẦN CUỐI & CẮT NGỌN
-        final_list = sorted(reranked_movies, key=lambda x: (x["final_score"], x.get("popularity", 0.0)), reverse=True)
+        final_list = sorted(reranked_movies, key=lambda x: x["final_score"], reverse=True)
         final_list = final_list[:top_n]
 
         logger.info(f" Đã xuất ra Top {len(final_list)} phim xuất sắc nhất.")

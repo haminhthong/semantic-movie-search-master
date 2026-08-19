@@ -193,6 +193,10 @@ def process_documents():
     logger.info("   Format: Title. Director. Cast. Genres. Keywords. Overview.")
 
     df['combined_text'] = df.apply(create_combined_text, axis=1)
+    if 'release_year' not in df.columns:
+        df['release_year'] = pd.to_numeric(
+            df['release_date'].astype(str).str[:4], errors='coerce'
+        ).fillna(0).astype(int)
 
     logger.info(f"   ✓ Created combined_text for {len(df)} movies")
 

@@ -1,5 +1,5 @@
 """
-MODULE 5: QUERY PROCESSING & ENCODING (ENGLISH)
+MODULE 5: QUERY PROCESSING & ENCODING
 ========================================================================
 - Input: User Query (raw string)
 - Output: clean_query, dense_vector (384-dim), sparse_vector (BM25)
@@ -50,8 +50,8 @@ class QueryEncoder:
         # Lowercase
         query = query.lower()
 
-        # Remove punctuation (keep letters + numbers)
-        query = re.sub(r"[^a-z0-9\s]", " ", query)
+        # Keep Unicode word characters so accented input is not corrupted.
+        query = re.sub(r"[^\w\s]", " ", query, flags=re.UNICODE)
 
         # Normalize whitespace
         query = re.sub(r"\s+", " ", query).strip()

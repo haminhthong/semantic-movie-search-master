@@ -3,7 +3,7 @@ MODULE 10: CROSS-ENCODER RERANKING
 =========================================================
 - Input: Câu hỏi người dùng (query) & Danh sách Top 10 phim (List of Dicts) từ Mod 8/9.
 - Output: Danh sách phim đã được xếp hạng lại với điểm `ce_score`.
-- Lợi ích: Khai thác toàn bộ mảng `matched_chunks` làm Full Context.
+- Context: one searchable document per movie.
 """
 
 import logging
@@ -48,15 +48,13 @@ class CrossEncoderReranker:
 
         logger.info(f" Đang trích xuất Full Docs của {len(top_movies)} bộ phim...")
 
-        # CHUẨN BỊ FULL DOCS (Gộp toàn bộ matched_chunks)
+        # Build one query-document pair per movie.
         pairs = []
         for movie in top_movies:
             title = movie.get("title", "Unknown")
             genres = movie.get("genres", "N/A")
 
-            matched_chunks = movie.get("matched_chunks", [])
-            evidence_texts = [chunk.get("text", "") for chunk in matched_chunks]
-            combined_evidence = " ".join(evidence_texts)
+            combined_evidence = movie.get("document", {}).get("text", "")
 
             doc_text = f"Title: {title}. Genres: {genres}. Context: {combined_evidence}"
             pairs.append([query, doc_text])

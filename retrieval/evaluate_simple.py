@@ -18,10 +18,10 @@ from collections import defaultdict
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from query import QueryEncoder
-from bm25 import bm25_retrieval
-from dense import dense_retrieval
-from aggregate import ChunkAggregator
+from retrieval.query import QueryEncoder
+from retrieval.bm25 import bm25_retrieval
+from retrieval.dense import dense_retrieval
+from retrieval.aggregate import DocumentAggregator
 
 # SETUP
 logging.basicConfig(
@@ -38,7 +38,7 @@ class SimpleRetriever:
         logger.info(" Initializing Simple Retriever...")
         
         self.query_encoder = QueryEncoder()
-        self.aggregator = ChunkAggregator(top_n_movies=top_n, max_chunks_per_movie=5)
+        self.aggregator = DocumentAggregator(top_n_movies=top_n)
         self.top_n = top_n
         
         logger.info(f" Retriever ready (Top-{top_n})")
