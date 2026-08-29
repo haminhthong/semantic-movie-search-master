@@ -1,91 +1,48 @@
-"""
-MODULE 5: QUERY PROCESSING & ENCODING
-========================================================================
-- Input: User Query (raw string)
-- Output: clean_query, dense_vector (384-dim), sparse_vector (BM25)
-"""
+"""Làm sạch và mã hóa truy vấn cho hai nhánh truy hồi."""
 
-import re
 import logging
-from typing import Tuple, List
+import re
 
-from sentence_transformers import SentenceTransformer
-from fastembed import SparseTextEmbedding
+from .config import DENSE_MODEL, SPARSE_MODEL
 
-# ============================================
-# LOGGING
-# ============================================
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 
 class QueryEncoder:
     def __init__(
         self,
-        dense_model_name: str = "all-MiniLM-L6-v2",
-        sparse_model_name: str = "Qdrant/bm25"
+        dense_model_name: str = DENSE_MODEL,
+        sparse_model_name: str = SPARSE_MODEL,
     ):
-        logger.info(" Initializing Query Encoder...")
-        logger.info(f"   - Dense: {dense_model_name}")
-        logger.info(f"   - Sparse: {sparse_model_name}")
+        from fastembed import SparseTextEmbedding
+        from sentence_transformers import SentenceTransformer
 
+        logger.info("Đang nạp mô hình dense %s", dense_model_name)
         self.dense_model = SentenceTransformer(dense_model_name)
+        logger.info("Đang nạp mô hình sparse %s", sparse_model_name)
         self.sparse_model = SparseTextEmbedding(model_name=sparse_model_name)
 
-        logger.info(" Models ready!")
-
-    # ============================================
-    # STEP 1: CLEAN QUERY (ENGLISH)
-    # ============================================
-    def clean_query(self, query: str) -> str:
+    @staticmethod
+    def clean_query(query: str) -> str:
+        """Bỏ HTML và dấu câu, đồng thời giữ lại chữ cái Unicode."""
         if not isinstance(query, str):
             return ""
+        cleaned = re.sub(r"<[^>]+>", " ", query).lower()
+        cleaned = re.sub(r"[^\w\s]", " ", cleaned, flags=re.UNICODE)
+        return re.sub(r"\s+", " ", cleaned).strip()
 
-        # Remove HTML
-        query = re.sub(r"<[^>]+>", " ", query)
-
-        # Lowercase
-        query = query.lower()
-
-        # Keep Unicode word characters so accented input is not corrupted.
-        query = re.sub(r"[^\w\s]", " ", query, flags=re.UNICODE)
-
-        # Normalize whitespace
-        query = re.sub(r"\s+", " ", query).strip()
-
-        return query
-
-    # ============================================
-    # STEP 2 + 3: ENCODE
-    # ============================================
-    def encode(
-        self, raw_query: str
-    ) -> Tuple[str, List[float], Tuple[List[int], List[float]]]:
-
-        # Step 1: Clean
-        clean_q = self.clean_query(raw_query)
-
-        if not clean_q:
-            raise ValueError("Query is empty after cleaning!")
-
-        logger.info(f" Query: '{clean_q}'")
-
-        # Step 2: Dense
-        dense_vec = self.dense_model.encode(
-            clean_q,
-            normalize_embeddings=True
+    def encode(self, raw_query: str) -> tuple[str, list[float], tuple[list[int], list[float]]]:
+        """Trả truy vấn sạch, vector dense và vector sparse."""
+        clean_query = self.clean_query(raw_query)
+        if not clean_query:
+            raise ValueError("Truy vấn không được để trống.")
+        dense_vector = self.dense_model.encode(
+            clean_query,
+            normalize_embeddings=True,
         ).tolist()
-
-        # Step 2: Sparse
-        sparse_result = list(self.sparse_model.embed([clean_q]))[0]
-
-        # Step 3: Format for Qdrant
-        sparse_vec = (
+        sparse_result = next(iter(self.sparse_model.embed([clean_query])))
+        sparse_vector = (
             sparse_result.indices.tolist(),
-            sparse_result.values.tolist()
+            sparse_result.values.tolist(),
         )
-
-        return clean_q, dense_vec, sparse_vec
+        return clean_query, dense_vector, sparse_vector

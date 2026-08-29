@@ -1,122 +1,68 @@
-"""
-MODULE 9: QUERY EXPANSION (HyDE) - PURE GENERATION
-==============================================================
-- Chức năng: Chỉ thực thi sinh cốt truyện ảo khi được Router gọi.
-- Groq API (Llama-3-8B): Tốc độ < 1s, siêu tốc.
-- Caching: Lưu kết quả LLM để tiết kiệm API (Tối ưu I/O).
-- Output: Dense Vector của cốt truyện ảo (Phục vụ 2nd Retrieval).
-"""
+"""Mở rộng truy vấn khó bằng một cốt truyện giả định."""
 
-import time
 import logging
 import re
-from typing import Tuple, List
 
-from sentence_transformers import SentenceTransformer
 from groq import Groq
+from sentence_transformers import SentenceTransformer
+
+from .config import DENSE_MODEL, GROQ_MODEL
 
 logger = logging.getLogger(__name__)
 
+
 class HyDEProcessor:
-    def __init__(self, api_key: str = None, encoder=None, embedding_model_name: str = 'all-MiniLM-L6-v2'):
-        # =========================
-        # NẠP MÔ HÌNH NHÚNG (EMBEDDING)
-        # =========================
-        logger.info(f" Đang nạp mô hình Embedding cho HyDE: {embedding_model_name}")
+    def __init__(
+        self,
+        api_key: str | None = None,
+        encoder=None,
+        embedding_model_name: str = DENSE_MODEL,
+    ):
         self.encoder = encoder or SentenceTransformer(embedding_model_name)
+        self.client = Groq(api_key=api_key) if api_key else None
+        self.model_name = GROQ_MODEL
+        self.cache: dict[str, str] = {}
+        if self.client is None:
+            logger.warning("Không có GROQ_API_KEY; HyDE sẽ dùng lại truy vấn gốc.")
 
-        # =========================
-        # NẠP MÔ HÌNH TẠO SINH (GROQ LLAMA-3)
-        # =========================
-        logger.info("⚡ Đang nạp Groq API Client (Llama-3)...")
-        self.api_key = api_key
-
-        if self.api_key:
-            try:
-                self.client = Groq(api_key=self.api_key)
-                self.model_name = 'llama-3.1-8b-instant'
-                logger.info("   ✓ Groq Client khởi tạo thành công.")
-            except Exception as e:
-                logger.error(f"    Lỗi khởi tạo Groq Client: {e}")
-                self.client = None
-        else:
-            self.client = None
-            logger.warning("   ️ Không có API Key. Cảnh báo: Sẽ không sinh được văn bản ảo!")
-
-        # Bộ nhớ đệm (Tránh gọi API nhiều lần cho cùng 1 câu hỏi)
-        self.cache = {}
-
-    # ======================================================
-    # LÕI SINH VĂN BẢN ẢO (LLM GENERATION)
-    # ======================================================
-    def _generate_hypo_doc(self, query: str) -> str:
-        # 1. Kiểm tra Cache
+    def _generate_hypothetical_document(self, query: str) -> str:
+        """Sinh một premise ngắn; trả truy vấn gốc khi Groq không dùng được."""
         if query in self.cache:
-            logger.info("    Bắt trúng HyDE Cache! Bỏ qua việc gọi API.")
             return self.cache[query]
-
-        if not self.client:
+        if self.client is None:
             return query
-
-        # 2. Xây dựng Prompt
-        system_prompt = "You are an expert movie screenwriter. Output ONLY the raw plot premise. No titles, no intro, no fluff."
-        user_prompt = f"Write a fast-paced, 3-sentence plot summary for a hypothetical movie that perfectly matches this request: '{query}'"
 
         try:
-            start_gen = time.time()
-            chat_completion = self.client.chat.completions.create(
+            completion = self.client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {
+                        "role": "system",
+                        "content": (
+                            "You write concise movie plot premises. Return only a three-sentence "
+                            "premise, without a title or introductory text."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Write a hypothetical movie plot matching this request: {query}",
+                    },
                 ],
                 model=self.model_name,
-                temperature=0.7,
+                temperature=0.3,
                 max_tokens=150,
             )
-
-            # 3. Làm sạch output của LLM
-            hypo = chat_completion.choices[0].message.content.strip()
-            hypo = re.sub(r"\s+", " ", hypo).strip()
-
-            gen_time = time.time() - start_gen
-            logger.info(f"    Llama-3 sinh cốt truyện ảo trong {gen_time:.3f}s")
-
-            # Fallback nếu LLM bị ngáo (trả về quá ngắn)
-            if len(hypo) < 20:
-                hypo = query
-
-            # Lưu vào Cache
-            self.cache[query] = hypo
-            return hypo
-
-        except Exception as e:
-            logger.error(f" Lỗi khi sinh văn bản bằng Groq: {e}")
+            content = completion.choices[0].message.content or ""
+            document = re.sub(r"\s+", " ", content).strip()
+            if len(document) < 20:
+                return query
+            self.cache[query] = document
+            return document
+        except Exception:
+            logger.exception("Không thể sinh tài liệu HyDE; chuyển sang truy vấn gốc")
             return query
 
-    # ======================================================
-    # HÀM GIAO TIẾP CHÍNH (ĐƯỢC GỌI BỞI PIPELINE)
-    # ======================================================
-    def get_hyde_vector(self, query: str) -> Tuple[List[float], str, float]:
-        """
-        Nhận lệnh từ Difficulty Router, sinh cốt truyện và trả về Vector Đặc.
-        Trả về: (dense_vector, hypo_doc_text, latency)
-        """
-        start_time = time.time()
-
-        logger.info(f" KÍCH HOẠT HyDE: Đang ảo hóa cốt truyện cho '{query}'...")
-
-        # Gọi trực tiếp bộ sinh văn bản ảo (Vì Router đã chốt đây là câu Khó)
-        doc = self._generate_hypo_doc(query)
-        logger.debug(f"   -> Cốt truyện ảo: {doc}")
-
-        # Chuẩn hóa chữ thường
-        doc = doc.lower()
-
-        # Nhúng thành Vector Đặc (Dense Vector) và chuẩn hóa (L2 Norm)
-        vec = self.encoder.encode(
-            doc,
-            normalize_embeddings=True
-        ).tolist()
-
-        latency = round(time.time() - start_time, 4)
-        return vec, doc, latency
+    def expand(self, query: str):
+        """Trả vector dense và tài liệu giả định."""
+        document = self._generate_hypothetical_document(query)
+        vector = self.encoder.encode(document, normalize_embeddings=True).tolist()
+        return vector, document

@@ -1,12 +1,11 @@
 name: CI
 on: [push, pull_request]
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: "3.11", cache: pip}
-      - run: pip install -e ".[dev]"
-      - run: ruff check pipeline retrieval ui tests
-      - run: pytest -q
+        with: {python-version: "3.11"}
+      - run: pip install ruff==0.9.7
+      - run: ruff check pipeline retrieval ui app

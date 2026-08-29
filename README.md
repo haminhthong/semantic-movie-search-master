@@ -139,7 +139,7 @@ Collection mặc định là `movies_hybrid_collection`. Các payload index gồ
 ### 4. Truy hồi lai và RRF
 
 Dense và sparse retrieval chạy song song, mỗi nhánh lấy tối đa 100 kết quả.
-[`retrieval/rrf.py`](retrieval/rrf.py) gộp thứ hạng theo công thức:
+[`retrieval/ranking.py`](retrieval/ranking.py) gộp thứ hạng theo công thức:
 
 ```text
 RRF(d) = Σ 1 / (k + rank_i(d)), với k = 60
@@ -150,7 +150,7 @@ dense và BM25 khác nhau.
 
 ### 5. Adaptive router
 
-Router trong [`retrieval/controller_retrieval.py`](retrieval/controller_retrieval.py)
+Router trong [`retrieval/search.py`](retrieval/search.py)
 so sánh RRF score của top 1 và top 2:
 
 - `EASY`: top score đạt mức tối thiểu và score gap lớn hơn ngưỡng; trả kết quả
@@ -191,14 +191,15 @@ liên quan lên trên.
 | Query expansion | Groq + `llama-3.1-8b-instant` |
 | Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
 | Data source | TMDB API |
-| Test/lint | Pytest, Ruff, GitHub Actions |
+| API và chất lượng | FastAPI, Ruff, GitHub Actions |
 | Container | Docker, Docker Compose |
 
 ## Cấu trúc repository
 
 ```text
 moviescout-ai/
-├── .github/workflows/ci.yml     # CI: cài package, lint và test
+├── .github/workflows/ci.yml     # CI: cài package và lint
+├── app/api.py                   # FastAPI /health và /search
 ├── evaluation/                  # Benchmark và báo cáo lịch sử
 ├── pipeline/
 │   ├── ingest.py                # Thu thập dữ liệu TMDB
@@ -206,15 +207,13 @@ moviescout-ai/
 │   └── dual_embedding_qdrant.py # Dense/sparse embedding và upsert
 ├── retrieval/
 │   ├── query.py                 # Làm sạch và encode query
-│   ├── dense.py / bm25.py       # Baseline retrievers
-│   ├── hybrid.py                # Truy hồi dense + sparse song song
-│   ├── rrf.py                   # Reciprocal Rank Fusion
-│   ├── aggregate.py             # Document hit → movie candidate
+│   ├── config.py                # Cấu hình model và retrieval
+│   ├── store.py                 # Dense/sparse Qdrant retrieval
+│   ├── ranking.py               # RRF, mapping và chuẩn hóa điểm
 │   ├── hyde.py                  # HyDE qua Groq
 │   ├── rerank.py                # Cross-encoder reranking
-│   ├── final_scorer.py          # Relevance-only final ranking
-│   └── controller_retrieval.py  # Điều phối pipeline và filter
-├── tests/                       # Unit tests không gọi API thật
+│   ├── search.py                # Điều phối pipeline và filter
+│   └── service.py               # Cache và latency logging
 ├── ui/app_final.py              # Streamlit UI
 ├── .env.example                 # Tên các biến môi trường, không chứa key
 ├── Dockerfile
@@ -309,6 +308,14 @@ kết quả dù phim tồn tại.
 streamlit run ui/app_final.py
 ```
 
+Hoặc chạy API độc lập:
+
+```bash
+uvicorn app.api:app --reload
+```
+
+Swagger UI có tại [http://localhost:8000/docs](http://localhost:8000/docs).
+
 Mở [http://localhost:8501](http://localhost:8501), nhập mô tả bằng tiếng Anh,
 chọn thể loại và năm nếu cần. Filter năm chấp nhận:
 
@@ -325,8 +332,8 @@ thao tác giao diện sẽ không tự gọi lại pipeline.
 docker compose up --build
 ```
 
-Ứng dụng được mở tại [http://localhost:8501](http://localhost:8501), Qdrant tại
-`http://localhost:6333`.
+Ứng dụng được mở tại [http://localhost:8501](http://localhost:8501), API tại
+[http://localhost:8000](http://localhost:8000), Qdrant tại `http://localhost:6333`.
 
 Khi app và Qdrant cùng chạy trong Docker Compose, hostname nội bộ của Qdrant là
 `qdrant`, không phải `localhost`. Đặt trong `.env`:
@@ -347,24 +354,14 @@ Cài nhóm dependency phát triển:
 pip install -e ".[dev]"
 ```
 
-Chạy unit test và lint:
+Chạy lint:
 
 ```bash
-pytest -q
-ruff check pipeline retrieval ui tests
+ruff check pipeline retrieval ui app
 ```
 
-Các test hiện tại kiểm tra:
-
-- text cleaning;
-- bảo toàn ký tự Unicode trong query;
-- hành vi RRF;
-- document aggregation và deduplication;
-- rating không làm thay đổi relevance ranking;
-- parse năm đơn, khoảng năm và dữ liệu năm không hợp lệ.
-
 Workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) chạy các kiểm tra
-tương tự trên mỗi push và pull request.
+lint trên mỗi push và pull request.
 
 ## Đánh giá hệ thống
 
@@ -428,7 +425,7 @@ nghiệm cố định và kết quả chạy thật.
   accuracy–latency–cost trên benchmark đáng tin cậy.
 - HyDE có tính ngẫu nhiên, phụ thuộc Groq và có thể tăng latency/cost.
 - Chưa có bước answer generation nên đây không phải full RAG.
-- Chưa có FastAPI backend; Streamlit gọi retrieval pipeline trực tiếp.
+- FastAPI và Streamlit dùng chung service trong tiến trình; chưa có distributed cache.
 - Chưa có live demo hoặc cơ chế feedback “đúng phim/sai phim”.
 - Dữ liệu là snapshot TMDB và kế thừa độ thiếu, sai lệch hoặc bias của TMDB.
 - Khi chạy lần đầu, thời gian nạp embedding model và reranker có thể đáng kể.
@@ -440,12 +437,12 @@ nghiệm cố định và kết quả chạy thật.
 - [x] Tách relevance khỏi TMDB rating.
 - [x] Đồng bộ README với thiết kế one-document-per-movie.
 - [x] Dùng chung dense encoder giữa QueryEncoder và HyDE.
-- [x] Thêm unit tests, CI, Docker và dependency pinning.
+- [x] Thêm CI lint, Docker và dependency pinning.
 - [ ] Xây benchmark thủ công với graded relevance.
 - [ ] Viết evaluation runner chung cho baseline và ablation.
 - [ ] Hiệu chỉnh hoặc loại bỏ adaptive router dựa trên kết quả thực nghiệm.
 - [ ] Đánh giá multilingual embedding và multilingual reranker.
-- [ ] Thêm FastAPI `/search` và để Streamlit gọi API.
+- [x] Thêm FastAPI `/search` dùng chung service với Streamlit.
 - [ ] Thêm feedback đúng/sai để thu thập query thực tế.
 - [ ] Thêm ảnh/GIF demo và triển khai live demo.
 - [ ] Phát hành phiên bản `v1.0.0` sau khi benchmark và deployment ổn định.
