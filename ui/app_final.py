@@ -7,7 +7,7 @@ thanh điểm tương quan (Relevance Progress Bar) và chi tiết metadata củ
 
 import html
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import streamlit as st
 
@@ -139,7 +139,7 @@ st.markdown(
 )
 
 
-def parse_movie_info(raw_text: str) -> Tuple[str, str, str]:
+def parse_movie_info(raw_text: str) -> tuple[str, str, str]:
     """Trích xuất đạo diễn, diễn viên và tóm tắt cốt truyện từ tài liệu combined_text.
 
     Args:
@@ -172,7 +172,7 @@ def init_engine() -> SearchService:
     return SearchService()
 
 
-def render_movie(rank: int, movie: Dict[str, Any]) -> None:
+def render_movie(rank: int, movie: dict[str, Any]) -> None:
     """Hiển thị một thẻ thông tin kết quả phim sang trọng."""
     director, cast, plot = parse_movie_info(movie.get("document", {}).get("text", ""))
     year = movie.get("release_year") or str(movie.get("release_date", ""))[:4] or "N/A"
@@ -193,7 +193,7 @@ def render_movie(rank: int, movie: Dict[str, Any]) -> None:
         <div style="margin-bottom: 10px;">
             <span class="badge-score">Relevance: {final_score:.4f}</span>
             <span style="color: #cbd5e1; font-size: 0.88rem; margin-left: 12px;">⭐ TMDB Rating: <b style="color: #facc15;">{safe_escape(vote_avg)}/10</b></span>
-            <span style="color: #94a3b8; font-size: 0.88rem; margin-left: 12px;">🎭 {safe_escape(movie.get('genres', ''))}</span>
+            <span style="color: #94a3b8; font-size: 0.88rem; margin-left: 12px;">🎭 {safe_escape(movie.get("genres", ""))}</span>
         </div>
         <div class="score-bar-bg">
             <div class="score-bar-fill" style="width: {score_pct}%;"></div>
@@ -225,9 +225,25 @@ st.markdown(
 
 # Thư viện thể loại phim
 genres_list = [
-    "All", "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
-    "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery",
-    "Romance", "Science Fiction", "Thriller", "War", "Western",
+    "All",
+    "Action",
+    "Adventure",
+    "Animation",
+    "Comedy",
+    "Crime",
+    "Documentary",
+    "Drama",
+    "Family",
+    "Fantasy",
+    "History",
+    "Horror",
+    "Music",
+    "Mystery",
+    "Romance",
+    "Science Fiction",
+    "Thriller",
+    "War",
+    "Western",
 ]
 
 # Sidebar thông tin dự án
@@ -252,7 +268,7 @@ with st.form("search_form"):
     col_genre, col_year = st.columns(2)
     genre_selected = col_genre.selectbox("Thể loại phim", genres_list)
     year_input = col_year.text_input("Năm sản xuất", placeholder="Ví dụ: 2014 hoặc 2000-2020")
-    
+
     query_input = st.text_input(
         "Mô tả nội dung cốt truyện bộ phim cần tìm",
         placeholder="Mô tả ý tưởng, ví dụ: 'A team of explorers travels through a wormhole in space to save humanity...'",
@@ -291,9 +307,15 @@ if submit_button:
 
             # Hiển thị badge tuyến
             if route == "EASY":
-                st.markdown("<span class='badge-easy'>🟢 EASY ROUTE: Kết quả có độ tự tin cao từ RRF vòng 1</span>", unsafe_allow_html=True)
+                st.markdown(
+                    "<span class='badge-easy'>🟢 EASY ROUTE: Kết quả có độ tự tin cao từ RRF vòng 1</span>",
+                    unsafe_allow_html=True,
+                )
             else:
-                st.markdown("<span class='badge-hard'>🟣 HARD ROUTE: Kích hoạt HyDE LLM & Cross-Encoder Reranking</span>", unsafe_allow_html=True)
+                st.markdown(
+                    "<span class='badge-hard'>🟣 HARD ROUTE: Kích hoạt HyDE LLM & Cross-Encoder Reranking</span>",
+                    unsafe_allow_html=True,
+                )
 
             st.write("")
 
@@ -310,6 +332,6 @@ if submit_button:
         st.warning(f"⚠️ Tham số không hợp lệ: {exc}")
     except Exception:
         logger.exception("Tìm kiếm gặp sự cố hệ thống")
-        st.error("❌ Dịch vụ tìm kiếm tạm thời không sẵn sàng. Vui lòng kiểm tra lại kết nối Qdrant/API Key và thử lại.")
-
-
+        st.error(
+            "❌ Dịch vụ tìm kiếm tạm thời không sẵn sàng. Vui lòng kiểm tra lại kết nối Qdrant/API Key và thử lại."
+        )

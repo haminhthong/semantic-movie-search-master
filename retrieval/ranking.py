@@ -6,16 +6,16 @@ bởi sự chênh lệch thang điểm gốc giữa hai mô hình.
 """
 
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from .config import settings
 
 
 def reciprocal_rank_fusion(
-    dense: List[Dict[str, Any]],
-    sparse: List[Dict[str, Any]],
-    limit: Optional[int] = None,
-) -> List[Dict[str, Any]]:
+    dense: list[dict[str, Any]],
+    sparse: list[dict[str, Any]],
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
     """Gộp hai danh sách xếp hạng từ Dense và Sparse retrieval bằng thuật toán Reciprocal Rank Fusion (RRF).
 
     Công thức RRF cho mỗi tài liệu d:
@@ -32,8 +32,8 @@ def reciprocal_rank_fusion(
     Returns:
         Danh sách tài liệu đã được gộp hạng và gán lại trường "score" theo điểm RRF mới.
     """
-    scores: Dict[str, float] = defaultdict(float)
-    documents: Dict[str, Dict[str, Any]] = {}
+    scores: dict[str, float] = defaultdict(float)
+    documents: dict[str, dict[str, Any]] = {}
 
     for results in (dense, sparse):
         for rank, item in enumerate(results, start=1):
@@ -46,13 +46,10 @@ def reciprocal_rank_fusion(
     ranked_ids = sorted(scores, key=lambda doc_id: scores[doc_id], reverse=True)
     max_candidates = limit or settings.candidate_k
 
-    return [
-        {**documents[doc_id], "score": scores[doc_id]}
-        for doc_id in ranked_ids[:max_candidates]
-    ]
+    return [{**documents[doc_id], "score": scores[doc_id]} for doc_id in ranked_ids[:max_candidates]]
 
 
-def to_movies(documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def to_movies(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Chuyển đổi danh sách payload tài liệu Qdrant thô thành cấu trúc dữ liệu ứng viên phim chuẩn.
 
     Hỗ trợ khử trùng lặp theo `movie_id` nếu trong tập hợp tài liệu có nhiều điểm trùng phim.
@@ -63,11 +60,11 @@ def to_movies(documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     Returns:
         List[Dict[str, Any]]: Danh sách các dict phim chứa metadata chi tiết (title, release_year, relevance_score,...).
     """
-    movies: List[Dict[str, Any]] = []
-    seen: Set[Any] = set()
+    movies: list[dict[str, Any]] = []
+    seen: set[Any] = set()
 
     for document in documents:
-        payload: Dict[str, Any] = document.get("payload", {})
+        payload: dict[str, Any] = document.get("payload", {})
         movie_id = payload.get("movie_id")
 
         # Bỏ qua tài liệu thiếu movie_id hoặc đã xuất hiện trước đó
@@ -75,26 +72,28 @@ def to_movies(documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             continue
         seen.add(movie_id)
 
-        movies.append({
-            "movie_id": movie_id,
-            "title": payload.get("title", "Không rõ tên"),
-            "genres": payload.get("genres", ""),
-            "release_date": payload.get("release_date", ""),
-            "release_year": payload.get("release_year", 0),
-            "vote_average": payload.get("vote_average", 0.0),
-            "popularity": payload.get("popularity", 0.0),
-            "poster_path": payload.get("poster_path", ""),
-            "document": {
-                "id": document["id"],
-                "text": payload.get("document_text", ""),
-            },
-            "relevance_score": float(document.get("score", 0.0)),
-        })
+        movies.append(
+            {
+                "movie_id": movie_id,
+                "title": payload.get("title", "Không rõ tên"),
+                "genres": payload.get("genres", ""),
+                "release_date": payload.get("release_date", ""),
+                "release_year": payload.get("release_year", 0),
+                "vote_average": payload.get("vote_average", 0.0),
+                "popularity": payload.get("popularity", 0.0),
+                "poster_path": payload.get("poster_path", ""),
+                "document": {
+                    "id": document["id"],
+                    "text": payload.get("document_text", ""),
+                },
+                "relevance_score": float(document.get("score", 0.0)),
+            }
+        )
 
     return movies
 
 
-def normalize_scores(movies: List[Dict[str, Any]], top_n: int) -> List[Dict[str, Any]]:
+def normalize_scores(movies: list[dict[str, Any]], top_n: int) -> list[dict[str, Any]]:
     """Chuẩn hóa điểm tương quan (relevance_score) về khoảng [0.0, 1.0] bằng Min-Max Scaling.
 
     Lưu ý: Chỉ chuẩn hóa điểm tương quan ngữ nghĩa (relevance score), tuyệt đối không
@@ -125,4 +124,3 @@ def normalize_scores(movies: List[Dict[str, Any]], top_n: int) -> List[Dict[str,
     # Sắp xếp giảm dần theo relevance_score và cắt lấy top_n
     sorted_movies = sorted(movies, key=lambda m: m["relevance_score"], reverse=True)
     return sorted_movies[:top_n]
-

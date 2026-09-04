@@ -8,7 +8,7 @@ import copy
 import logging
 import time
 from collections import OrderedDict
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from .search import MovieSearch
 
@@ -21,7 +21,7 @@ class SearchService:
     def __init__(self) -> None:
         """Khởi tạo SearchEngine đơn thể và bảng bộ nhớ đệm OrderedDict với kích thước tối đa 128."""
         self.engine = MovieSearch()
-        self.cache: OrderedDict[Tuple[str, int, str, str], Dict[str, Any]] = OrderedDict()
+        self.cache: OrderedDict[tuple[str, int, str, str], dict[str, Any]] = OrderedDict()
 
     def _cached_search(
         self,
@@ -29,7 +29,7 @@ class SearchService:
         top_n: int,
         genre: str,
         year: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Truy xuất kết quả từ bộ nhớ đệm hoặc gọi MovieSearch engine nếu chưa cache."""
         key = (query, top_n, genre, year)
         if key not in self.cache:
@@ -48,7 +48,7 @@ class SearchService:
         top_n: int = 10,
         genre: str = "",
         year: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Thực hiện yêu cầu tìm kiếm, ghi nhận độ trễ (ms) và trả kết quả sao chép an toàn (deepcopy).
 
         Args:
@@ -63,9 +63,7 @@ class SearchService:
         started = time.perf_counter()
 
         # Thực hiện tìm kiếm có đệm và tạo bản sao sâu để tránh thay đổi tham chiếu cache
-        result = copy.deepcopy(
-            self._cached_search(query.strip(), top_n, genre.strip(), year.strip())
-        )
+        result = copy.deepcopy(self._cached_search(query.strip(), top_n, genre.strip(), year.strip()))
 
         # Tính toán độ trễ phản hồi (ms)
         elapsed_ms = (time.perf_counter() - started) * 1000

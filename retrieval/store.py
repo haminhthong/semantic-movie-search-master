@@ -8,7 +8,7 @@ bằng đa luồng (ThreadPoolExecutor) để tối ưu hóa hiệu năng.
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from .config import COLLECTION_NAME, settings
 
@@ -34,14 +34,12 @@ def get_client() -> Any:
     )
 
 
-
 def _query(
     vector: Any,
     vector_name: str,
     limit: int,
-    query_filter: Optional[Any] = None,
-) -> List[Dict[str, Any]]:
-
+    query_filter: Any | None = None,
+) -> list[dict[str, Any]]:
     """Thực hiện truy vấn lấy các điểm dữ liệu (points) tương đồng nhất từ Qdrant.
 
     Args:
@@ -73,10 +71,10 @@ def _query(
 
 
 def dense_search(
-    vector: List[float],
-    query_filter: Optional[Any] = None,
-    limit: Optional[int] = None,
-) -> List[Dict[str, Any]]:
+    vector: list[float],
+    query_filter: Any | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
     """Tìm kiếm tương đồng theo vector Dense (ngữ nghĩa).
 
     Args:
@@ -91,10 +89,10 @@ def dense_search(
 
 
 def sparse_search(
-    vector: Tuple[List[int], List[float]],
-    query_filter: Optional[Any] = None,
-    limit: Optional[int] = None,
-) -> List[Dict[str, Any]]:
+    vector: tuple[list[int], list[float]],
+    query_filter: Any | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
     """Tìm kiếm tương đồng theo vector Sparse (BM25 từ khóa).
 
     Args:
@@ -111,13 +109,12 @@ def sparse_search(
     return _query(sparse, "sparse", limit or settings.retrieval_k, query_filter)
 
 
-
 def hybrid_search(
-    dense_vector: List[float],
-    sparse_vector: Tuple[List[int], List[float]],
-    query_filter: Optional[models.Filter] = None,
-    limit: Optional[int] = None,
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    dense_vector: list[float],
+    sparse_vector: tuple[list[int], list[float]],
+    query_filter: Any | None = None,
+    limit: int | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Thực thi tìm kiếm song song cả hai nhánh Dense và Sparse thông qua ThreadPoolExecutor.
 
     Nếu một trong hai nhánh gặp lỗi hệ thống, nhánh còn lại vẫn sẽ trả kết quả dự phòng (graceful degradation).
@@ -141,8 +138,8 @@ def hybrid_search(
             "dense": pool.submit(dense_search, dense_vector, query_filter, search_limit),
             "sparse": pool.submit(sparse_search, sparse_vector, query_filter, search_limit),
         }
-        results: Dict[str, List[Dict[str, Any]]] = {}
-        errors: List[Exception] = []
+        results: dict[str, list[dict[str, Any]]] = {}
+        errors: list[Exception] = []
 
         for name, future in futures.items():
             try:
@@ -153,7 +150,8 @@ def hybrid_search(
                 errors.append(exc)
 
     if len(errors) == 2:
-        raise RuntimeError("Không thể truy vấn cơ sở dữ liệu Qdrant ở cả 2 nhánh Dense và Sparse.") from errors[0]
+        raise RuntimeError(
+            "Không thể truy vấn cơ sở dữ liệu Qdrant ở cả 2 nhánh Dense và Sparse."
+        ) from errors[0]
 
     return results["dense"], results["sparse"]
-

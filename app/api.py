@@ -6,7 +6,7 @@ Cung cấp các endpoints:
 """
 
 from functools import lru_cache
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
@@ -28,6 +28,7 @@ app = FastAPI(
 
 # === Pydantic Request Models ===
 
+
 class SearchRequest(BaseModel):
     """Mô hình dữ liệu đầu vào cho yêu cầu tìm kiếm phim."""
 
@@ -36,32 +37,30 @@ class SearchRequest(BaseModel):
         min_length=1,
         max_length=500,
         description="Mô tả nội dung cốt truyện, thể loại hoặc từ khóa phim.",
-        example="A team of astronauts travels through a wormhole in space to save humanity",
+        json_schema_extra={
+            "example": "A team of astronauts travels through a wormhole in space to save humanity"
+        },
     )
     top_n: int = Field(
         default=10,
         ge=1,
         le=50,
         description="Số lượng bộ phim kết quả tối đa cần trả về (1-50).",
-        example=10,
+        json_schema_extra={"example": 10},
     )
     genre: str = Field(
         default="",
         description="Tên thể loại phim muốn lọc (ví dụ: 'Action', 'Sci-Fi'). Để rỗng nếu tìm tất cả.",
-        example="Science Fiction",
+        json_schema_extra={"example": "Science Fiction"},
     )
     year: str = Field(
         default="",
         description="Năm hoặc khoảng năm phát hành (ví dụ: '2014' hoặc '2010-2020').",
-        example="2010-2020",
+        json_schema_extra={"example": "2010-2020"},
     )
 
 
 # === Pydantic Response Models ===
-
-class MovieDocumentItem(BaseModel):
-    id: str
-    text: str
 
 
 class MovieItemResponse(BaseModel):
@@ -75,7 +74,7 @@ class MovieItemResponse(BaseModel):
     vote_average: float = Field(0.0, description="Điểm đánh giá trung bình trên TMDB (0-10)")
     popularity: float = Field(0.0, description="Chỉ số độ phổ biến TMDB")
     poster_path: str = Field("", description="Đường dẫn ảnh poster TMDB")
-    document: Dict[str, Any] = Field(..., description="Tài liệu văn bản đã mã hóa")
+    document: dict[str, Any] = Field(..., description="Tài liệu văn bản đã mã hóa")
     relevance_score: float = Field(..., description="Điểm tương quan thô từ RRF / Cross-Encoder")
     final_score: float = Field(..., description="Điểm tương quan đã chuẩn hóa Min-Max [0.0 - 1.0]")
 
@@ -83,9 +82,9 @@ class MovieItemResponse(BaseModel):
 class SearchResponse(BaseModel):
     """Mô hình dữ liệu trả về cho API tìm kiếm."""
 
-    movies: List[MovieItemResponse] = Field(..., description="Danh sách kết quả phim xếp hạng")
+    movies: list[MovieItemResponse] = Field(..., description="Danh sách kết quả phim xếp hạng")
     route: str = Field(..., description="Tuyến xử lý Adaptive Router ('EASY' hoặc 'HARD')")
-    hyde: Optional[str] = Field(None, description="Đoạn văn bản cốt truyện giả định sinh bởi HyDE (nếu có)")
+    hyde: str | None = Field(None, description="Đoạn văn bản cốt truyện giả định sinh bởi HyDE (nếu có)")
     latency_ms: float = Field(..., description="Thời gian xử lý phản hồi (tính bằng miligiây)")
 
 
@@ -98,6 +97,7 @@ class HealthResponse(BaseModel):
 
 # === Dependency Injection ===
 
+
 @lru_cache(maxsize=1)
 def get_service() -> SearchService:
     """Tạo hoặc trả về đối tượng SearchService đơn thể (Singleton)."""
@@ -105,6 +105,7 @@ def get_service() -> SearchService:
 
 
 # === API Endpoints ===
+
 
 @app.get(
     "/health",
@@ -156,4 +157,3 @@ def search(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         ) from exc
-

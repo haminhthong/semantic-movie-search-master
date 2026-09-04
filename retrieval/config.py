@@ -7,7 +7,6 @@ cho Adaptive Router.
 
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -46,8 +45,8 @@ class Settings:
     """
 
     qdrant_url: str = os.getenv("QDRANT_URL", "").strip()
-    qdrant_api_key: Optional[str] = os.getenv("QDRANT_API_KEY") or None
-    groq_api_key: Optional[str] = os.getenv("GROQ_API_KEY") or None
+    qdrant_api_key: str | None = os.getenv("QDRANT_API_KEY") or None
+    groq_api_key: str | None = os.getenv("GROQ_API_KEY") or None
     retrieval_k: int = 100
     candidate_k: int = 20
     rrf_k: int = 60
@@ -66,4 +65,3 @@ class Settings:
 
 # Đối tượng cấu hình dùng chung toàn hệ thống
 settings: Settings = Settings()
-

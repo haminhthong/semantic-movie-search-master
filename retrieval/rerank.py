@@ -7,9 +7,7 @@ nhận đồng thời cặp [query, document_text] làm đầu vào và cho phé
 
 import logging
 import time
-from typing import Any, Dict, List
-
-import torch
+from typing import Any
 
 from .config import RERANK_MODEL
 
@@ -17,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class CrossEncoderReranker:
-
     """Đánh giá lại độ tương quan của danh sách ứng viên thông qua Cross-Encoder transformer model."""
 
     def __init__(self, model_name: str = RERANK_MODEL) -> None:
@@ -26,14 +23,14 @@ class CrossEncoderReranker:
         Args:
             model_name: Tên mô hình reranker từ HuggingFace / SentenceTransformers.
         """
+        import torch
         from sentence_transformers import CrossEncoder
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info("Đang nạp mô hình Reranker %s trên thiết bị %s", model_name, device.upper())
         self.model = CrossEncoder(model_name, device=device)
 
-
-    def rerank(self, query: str, movies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def rerank(self, query: str, movies: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Tính điểm độ tương quan thực sự (relevance_score) cho từng phim và sắp xếp giảm dần.
 
         Args:
@@ -71,4 +68,3 @@ class CrossEncoderReranker:
 
         # Sắp xếp danh sách phim giảm dần theo điểm tương quan mới
         return sorted(movies, key=lambda item: item["relevance_score"], reverse=True)
-

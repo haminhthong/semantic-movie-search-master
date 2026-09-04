@@ -92,9 +92,7 @@ def _ensure_collection(client: QdrantClient, dense_size: int) -> None:
     if not client.collection_exists(COLLECTION_NAME):
         client.create_collection(
             collection_name=COLLECTION_NAME,
-            vectors_config={
-                "dense": models.VectorParams(size=dense_size, distance=models.Distance.COSINE)
-            },
+            vectors_config={"dense": models.VectorParams(size=dense_size, distance=models.Distance.COSINE)},
             sparse_vectors_config={"sparse": models.SparseVectorParams()},
         )
 
@@ -215,4 +213,3 @@ def process_dual_embedding(input_file: Path = INPUT_FILE) -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     process_dual_embedding()
-

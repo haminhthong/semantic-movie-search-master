@@ -7,7 +7,6 @@ Hỗ trợ mã hóa song song hai định dạng vector:
 
 import logging
 import re
-from typing import Tuple
 
 from .config import DENSE_MODEL, SPARSE_MODEL
 
@@ -33,7 +32,7 @@ class QueryEncoder:
 
         logger.info("Đang nạp mô hình dense embedding: %s", dense_model_name)
         self.dense_model = SentenceTransformer(dense_model_name)
-        
+
         logger.info("Đang nạp mô hình sparse embedding (BM25): %s", sparse_model_name)
         self.sparse_model = SparseTextEmbedding(model_name=sparse_model_name)
 
@@ -53,12 +52,14 @@ class QueryEncoder:
             return ""
         # Loại bỏ các thẻ HTML nếu có
         cleaned = re.sub(r"<[^>]+>", " ", query).lower()
+        # Loại bỏ các đường dẫn URL nếu có
+        cleaned = re.sub(r"(?:https?://|www\.)\S+", " ", cleaned, flags=re.IGNORECASE)
         # Loại bỏ ký tự đặc biệt/dấu câu nhưng giữ nguyên ký tự Unicode chữ và số
         cleaned = re.sub(r"[^\w\s]", " ", cleaned, flags=re.UNICODE)
         # Chuẩn hóa khoảng trắng thừa
         return re.sub(r"\s+", " ", cleaned).strip()
 
-    def encode(self, raw_query: str) -> Tuple[str, list[float], Tuple[list[int], list[float]]]:
+    def encode(self, raw_query: str) -> tuple[str, list[float], tuple[list[int], list[float]]]:
         """Mã hóa câu truy vấn thô thành vector dense và vector sparse.
 
         Args:
@@ -85,10 +86,9 @@ class QueryEncoder:
 
         # Tạo sparse BM25 vector thông qua FastEmbed
         sparse_result = next(iter(self.sparse_model.embed([clean_query])))
-        sparse_vector: Tuple[list[int], list[float]] = (
+        sparse_vector: tuple[list[int], list[float]] = (
             sparse_result.indices.tolist(),
             sparse_result.values.tolist(),
         )
 
         return clean_query, dense_vector, sparse_vector
-

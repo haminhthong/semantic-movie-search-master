@@ -8,9 +8,7 @@ thành một đoạn tóm tắt cốt truyện giả định (hypothetical docum
 
 import logging
 import re
-from typing import Any, Optional, Tuple
-
-from sentence_transformers import SentenceTransformer
+from typing import Any
 
 from .config import DENSE_MODEL, GROQ_MODEL
 
@@ -22,8 +20,8 @@ class HyDEProcessor:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        encoder: Optional[SentenceTransformer] = None,
+        api_key: str | None = None,
+        encoder: Any | None = None,
         embedding_model_name: str = DENSE_MODEL,
     ) -> None:
         """Khởi tạo HyDE processor với Groq API client và Dense Encoder.
@@ -39,23 +37,25 @@ class HyDEProcessor:
             self.encoder = encoder
         else:
             from sentence_transformers import SentenceTransformer
+
             self.encoder = SentenceTransformer(embedding_model_name)
 
-        self.client: Optional[Any] = None
+        self.client: Any | None = None
         if api_key:
             try:
                 from groq import Groq
+
                 self.client = Groq(api_key=api_key)
             except ImportError:
                 logger.warning("Chưa cài đặt thư viện 'groq'; HyDE sẽ tự động fallback về truy vấn gốc.")
-                self.client = None
 
         self.model_name = GROQ_MODEL
         self.cache: dict[str, str] = {}
 
-        if self.client is None:
-            logger.warning("Không tìm thấy GROQ_API_KEY hoặc client; tiến trình HyDE sẽ fallback dùng lại truy vấn gốc.")
-
+        if self.client is None and not api_key:
+            logger.warning(
+                "Không tìm thấy GROQ_API_KEY; tiến trình HyDE sẽ tự động fallback về truy vấn gốc."
+            )
 
     def _generate_hypothetical_document(self, query: str) -> str:
         """Sử dụng Groq LLM để sinh một tóm tắt cốt truyện phim giả định khoảng 3 câu.
@@ -104,7 +104,7 @@ class HyDEProcessor:
             logger.exception("Lỗi khi sinh tài liệu HyDE từ Groq LLM; tự động fallback về truy vấn gốc.")
             return query
 
-    def expand(self, query: str) -> Tuple[list[float], str]:
+    def expand(self, query: str) -> tuple[list[float], str]:
         """Tạo cốt truyện giả định và mã hóa thành vector dense embedding.
 
         Args:
@@ -118,4 +118,3 @@ class HyDEProcessor:
         document = self._generate_hypothetical_document(query)
         vector = self.encoder.encode(document, normalize_embeddings=True).tolist()
         return vector, document
-

@@ -9,7 +9,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 import requests
@@ -28,7 +28,7 @@ REQUEST_DELAY: float = 0.05
 REQUEST_TIMEOUT: int = 15
 
 
-def _request_json(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
+def _request_json(path: str, params: dict[str, Any]) -> dict[str, Any]:
     """Thực hiện HTTP GET request tới TMDB API và trả về nội dung định dạng JSON.
 
     Args:
@@ -53,7 +53,7 @@ def _request_json(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
     return response.json()
 
 
-def fetch_genre_mapping() -> Dict[int, str]:
+def fetch_genre_mapping() -> dict[int, str]:
     """Lấy danh sách mã định danh thể loại (genre ID) và tên tiếng Anh tương ứng từ TMDB.
 
     Returns:
@@ -67,7 +67,7 @@ def fetch_genre_mapping() -> Dict[int, str]:
     }
 
 
-def fetch_movie_details(movie_id: int) -> Dict[str, Any]:
+def fetch_movie_details(movie_id: int) -> dict[str, Any]:
     """Truy vấn thông tin chi tiết của một bộ phim (Credits: Đạo diễn, Diễn viên; Keywords: Từ khóa).
 
     Args:
@@ -137,7 +137,7 @@ def fetch_tmdb_movies_by_year(
         raise ValueError("max_pages_per_year phải lớn hơn 0.")
 
     genre_mapping = fetch_genre_mapping()
-    records: List[Dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
 
     for year in range(start_year, end_year + 1):
         for page in range(1, max_pages_per_year + 1):
@@ -167,28 +167,26 @@ def fetch_tmdb_movies_by_year(
                     continue
 
                 details = fetch_movie_details(int(movie_id))
-                genres = [
-                    genre_mapping[item]
-                    for item in movie.get("genre_ids", [])
-                    if item in genre_mapping
-                ]
+                genres = [genre_mapping[item] for item in movie.get("genre_ids", []) if item in genre_mapping]
                 release_date = str(movie.get("release_date", ""))
 
-                records.append({
-                    "movie_id": int(movie_id),
-                    "title": movie.get("title", ""),
-                    "overview": movie.get("overview", ""),
-                    "release_date": release_date,
-                    "release_year": _release_year(release_date, year),
-                    "vote_average": movie.get("vote_average", 0.0),
-                    "popularity": movie.get("popularity", 0.0),
-                    "genres": ", ".join(genres),
-                    "director": details["director"],
-                    "cast": ", ".join(details["cast"]),
-                    "keywords": ", ".join(details["keywords"]),
-                    "original_language": movie.get("original_language", ""),
-                    "poster_path": movie.get("poster_path") or "",
-                })
+                records.append(
+                    {
+                        "movie_id": int(movie_id),
+                        "title": movie.get("title", ""),
+                        "overview": movie.get("overview", ""),
+                        "release_date": release_date,
+                        "release_year": _release_year(release_date, year),
+                        "vote_average": movie.get("vote_average", 0.0),
+                        "popularity": movie.get("popularity", 0.0),
+                        "genres": ", ".join(genres),
+                        "director": details["director"],
+                        "cast": ", ".join(details["cast"]),
+                        "keywords": ", ".join(details["keywords"]),
+                        "original_language": movie.get("original_language", ""),
+                        "poster_path": movie.get("poster_path") or "",
+                    }
+                )
 
             logger.info("Đã tải năm %d, trang %d | Tổng tích lũy: %d phim", year, page, len(records))
             time.sleep(REQUEST_DELAY)
@@ -219,4 +217,3 @@ def main() -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     main()
-

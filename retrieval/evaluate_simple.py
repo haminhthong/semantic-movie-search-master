@@ -113,8 +113,7 @@ def evaluate_batch(
     ]
     for metric in METRIC_NAMES:
         lines.append(
-            f"{metric:<12}{totals['bm25'][metric] / count:>12.4f}"
-            f"{totals['dense'][metric] / count:>12.4f}"
+            f"{metric:<12}{totals['bm25'][metric] / count:>12.4f}{totals['dense'][metric] / count:>12.4f}"
         )
     (output_dir / "comparison_summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     logger.info("Đã ghi kết quả benchmark vào %s", output_dir)

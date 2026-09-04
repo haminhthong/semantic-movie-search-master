@@ -8,7 +8,7 @@ Thực hiện luồng xử lý thông minh (Adaptive Routing):
 """
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .config import settings
 from .hyde import HyDEProcessor
@@ -18,7 +18,7 @@ from .rerank import CrossEncoderReranker
 from .store import hybrid_search
 
 
-def parse_year(value: str) -> Tuple[int, int]:
+def parse_year(value: str) -> tuple[int, int]:
     """Phân tích cú pháp chuỗi năm phát hành (ví dụ: "2014" hoặc "2000-2020" hoặc "2000 to 2020").
 
     Args:
@@ -32,7 +32,9 @@ def parse_year(value: str) -> Tuple[int, int]:
     """
     match = re.fullmatch(r"\s*(\d{4})(?:\s*(?:-|to)\s*(\d{4}))?\s*", value, re.IGNORECASE)
     if not match:
-        raise ValueError("Định dạng năm không hợp lệ. Vui lòng nhập năm dạng YYYY (vd: 2014) hoặc YYYY-YYYY (vd: 2010-2020).")
+        raise ValueError(
+            "Định dạng năm không hợp lệ. Vui lòng nhập năm dạng YYYY (vd: 2014) hoặc YYYY-YYYY (vd: 2010-2020)."
+        )
 
     start, end = int(match.group(1)), int(match.group(2) or match.group(1))
 
@@ -45,7 +47,7 @@ def parse_year(value: str) -> Tuple[int, int]:
     return start, end
 
 
-def build_filter(genre: str = "", year: str = "") -> Optional[Any]:
+def build_filter(genre: str = "", year: str = "") -> Any | None:
     """Tạo bộ lọc điều kiện (Qdrant Filter) theo thể loại và năm phát hành.
 
     Args:
@@ -57,7 +59,7 @@ def build_filter(genre: str = "", year: str = "") -> Optional[Any]:
     """
     from qdrant_client import models
 
-    conditions: List[Any] = []
+    conditions: list[Any] = []
 
     # Lọc thể loại nếu có
     if genre and genre != "All":
@@ -71,7 +73,6 @@ def build_filter(genre: str = "", year: str = "") -> Optional[Any]:
     return models.Filter(must=conditions) if conditions else None
 
 
-
 class MovieSearch:
     """Động cơ tìm kiếm phim ngữ nghĩa thích ứng (Adaptive Semantic Movie Search Engine)."""
 
@@ -80,15 +81,14 @@ class MovieSearch:
         self.encoder = QueryEncoder()
         # Dùng chung mô hình Dense Encoder cho HyDE để tối ưu RAM
         self.hyde = HyDEProcessor(settings.groq_api_key, self.encoder.dense_model)
-        self.reranker: Optional[CrossEncoderReranker] = None
+        self.reranker: CrossEncoderReranker | None = None
 
     def _candidates(
         self,
-        dense_vector: List[float],
-        sparse_vector: Tuple[List[int], List[float]],
-        query_filter: Optional[Any],
-    ) -> List[Dict[str, Any]]:
-
+        dense_vector: list[float],
+        sparse_vector: tuple[list[int], list[float]],
+        query_filter: Any | None,
+    ) -> list[dict[str, Any]]:
         """Thực hiện hybrid search trên Qdrant và gộp kết quả bằng RRF."""
         dense, sparse = hybrid_search(dense_vector, sparse_vector, query_filter)
         return to_movies(reciprocal_rank_fusion(dense, sparse))
@@ -105,7 +105,7 @@ class MovieSearch:
         top_n: int = 10,
         genre: str = "",
         year: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Thực hiện quy trình tìm kiếm đầy đủ với bộ điều tuyến thích ứng (Adaptive Router).
 
         Args:
@@ -134,13 +134,19 @@ class MovieSearch:
         candidates = self._candidates(dense_vector, sparse_vector, query_filter)
 
         # 3. Đánh giá độ tự tin (Confidence Router)
-        top_score = candidates[0]["relevance_score"] if candidates else 0.0
+        if not candidates:
+            return {
+                "movies": [],
+                "route": "EASY",
+                "hyde": None,
+            }
+
+        top_score = candidates[0]["relevance_score"]
         runner_up = candidates[1]["relevance_score"] if len(candidates) > 1 else top_score
 
         # Điểm RRF tối thiểu và khoảng cách giữa top 1 & top 2 đủ lớn -> Tuyến EASY
         is_easy_route = (
-            top_score >= settings.minimum_score
-            and (top_score - runner_up) >= settings.confidence_gap
+            top_score >= settings.minimum_score and (top_score - runner_up) >= settings.confidence_gap
         )
 
         if is_easy_route:
@@ -165,4 +171,3 @@ class MovieSearch:
             "route": "HARD",
             "hyde": hypothetical if hypothetical != clean_query else None,
         }
-

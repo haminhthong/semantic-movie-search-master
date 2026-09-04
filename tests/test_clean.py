@@ -23,14 +23,16 @@ def test_clean_text_empty_and_nan():
 
 def test_create_combined_text():
     """Kiểm tra ghép nối metadata thành combined_text."""
-    row = pd.Series({
-        "title": "Interstellar",
-        "director": "Christopher Nolan",
-        "cast": "Matthew McConaughey",
-        "genres": "Adventure, Drama",
-        "keywords": "space, wormhole",
-        "overview": "A team of explorers travels through a wormhole.",
-    })
+    row = pd.Series(
+        {
+            "title": "Interstellar",
+            "director": "Christopher Nolan",
+            "cast": "Matthew McConaughey",
+            "genres": "Adventure, Drama",
+            "keywords": "space, wormhole",
+            "overview": "A team of explorers travels through a wormhole.",
+        }
+    )
     combined = create_combined_text(row)
     assert "Title: Interstellar" in combined
     assert "Director: Christopher Nolan" in combined

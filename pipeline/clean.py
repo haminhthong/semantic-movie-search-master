@@ -8,7 +8,7 @@ Thực hiện quy trình làm sạch văn bản (xóa thẻ HTML, URL, khoảng 
 import logging
 import re
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -20,11 +20,11 @@ INPUT_FILE: Path = BASE_DIR / "data" / "movies_raw.csv"
 OUTPUT_FILE: Path = BASE_DIR / "data" / "movies_clean.csv"
 
 # Danh sách các trường văn bản cần làm sạch
-TEXT_FIELDS: Tuple[str, ...] = ("title", "overview", "director", "cast", "keywords", "genres")
+TEXT_FIELDS: tuple[str, ...] = ("title", "overview", "director", "cast", "keywords", "genres")
 REQUIRED_COLUMNS: set[str] = {"movie_id", "title", "overview", "release_date", *TEXT_FIELDS}
 
 # Cấu trúc các trường ghép văn bản tài liệu tìm kiếm
-DOCUMENT_FIELDS: Tuple[Tuple[str, str], ...] = (
+DOCUMENT_FIELDS: tuple[tuple[str, str], ...] = (
     ("title", "Title"),
     ("director", "Director"),
     ("cast", "Cast"),
@@ -50,7 +50,7 @@ def clean_text(value: Any) -> str:
     # Xóa đường dẫn liên kết URL
     text = re.sub(r"(?:https?://|www\.)\S+", " ", text, flags=re.IGNORECASE)
     # Chuẩn hóa khoảng trắng thừa
-    return re.sub(r"\s+", " ", text).strip()
+    return re.sub(r"\s+", " ", text).strip().lower()
 
 
 def create_combined_text(row: pd.Series) -> str:
@@ -65,11 +65,7 @@ def create_combined_text(row: pd.Series) -> str:
     Returns:
         Chuỗi văn bản `combined_text` hoàn chỉnh dùng làm searchable document.
     """
-    parts = [
-        f"{label}: {row.get(field, '')}"
-        for field, label in DOCUMENT_FIELDS
-        if row.get(field, "")
-    ]
+    parts = [f"{label}: {row.get(field, '')}" for field, label in DOCUMENT_FIELDS if row.get(field, "")]
     return ". ".join(parts)
 
 
@@ -130,10 +126,7 @@ def process_documents(
     dataframe["combined_text"] = dataframe.apply(create_combined_text, axis=1)
 
     # Lọc bỏ bản ghi không có phần tóm tắt overview hoặc combined_text rỗng
-    dataframe = dataframe[
-        (dataframe["overview"].str.len() > 0)
-        & (dataframe["combined_text"].str.len() > 0)
-    ]
+    dataframe = dataframe[(dataframe["overview"].str.len() > 0) & (dataframe["combined_text"].str.len() > 0)]
 
     # Loại bỏ bản ghi trùng lặp theo movie_id
     dataframe = dataframe.drop_duplicates(subset=["movie_id"], keep="first").copy()
@@ -154,4 +147,3 @@ def process_documents(
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     process_documents()
-
